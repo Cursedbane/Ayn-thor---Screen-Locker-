@@ -7,14 +7,11 @@ import android.content.Intent;
 public class AlarmReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        LockService s = LockService.instance;
-        if (s != null) {
-            s.checkDelayedLock();
+        LockEngine e = LockEngine.current;
+        if (e != null) {
+            e.checkDelayedLock();
         } else if (new Prefs(context).isEnabled()) {
-            try {
-                LockService.start(context, LockService.ACTION_REFRESH);
-            } catch (Exception ignored) {
-            }
+            LockEngine.send(context, LockEngine.ACTION_REFRESH);
         }
     }
 }

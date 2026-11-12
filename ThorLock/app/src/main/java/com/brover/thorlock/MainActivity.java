@@ -4,6 +4,8 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
@@ -60,12 +62,8 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         // Самовосстановление: защита включена, а служба не запущена.
-        if (prefs.isEnabled() && !LockService.isRunning()) {
-            try {
-                LockService.start(this, LockService.ACTION_REFRESH);
-            } catch (Exception e) {
-                EventLog.add(this, "Не удалось запустить службу: " + e);
-            }
+        if (prefs.isEnabled() && !LockEngine.isRunning()) {
+            LockEngine.send(this, LockEngine.ACTION_REFRESH);
         }
         String mode = prefs.getMode();
         long now = SystemClock.elapsedRealtime();
@@ -116,9 +114,12 @@ public class MainActivity extends Activity {
         TextView title = text("🔒 Thor Lock", 24);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         list.addView(title);
-        TextView state = text(prefs.isEnabled()
-                ? (LockService.isRunning() ? "● Защита работает" : "● Защита включена, служба запускается…")
-                : "○ Защита выключена", 15);
+        String stateText;
+        if (!prefs.isEnabled()) stateText = "○ Защита выключена";
+        else if (a11yRunning()) stateText = "● Защита работает (через спецвозможности — надёжно)";
+        else if (LockEngine.isRunning()) stateText = "● Защита работает (фоновая служба — может умирать, включи спецвозможность)";
+        else stateText = "● Защита включена, запускается…";
+        TextView state = text(stateText, 15);
         state.setTextColor(prefs.isEnabled() ? 0xFF66BB6A : 0xFFFF8A65);
         list.addView(state);
 
@@ -130,8 +131,20 @@ public class MainActivity extends Activity {
         boolean batteryOk = pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
 
         section("Разрешения");
+        if (a11yRunning()) {
+            list.addView(text("✓ Спецвозможность Thor Lock включена", 15));
+        } else {
+            list.addView(button("Включить спецвозможность Thor Lock (ВАЖНО: без неё защита отключается, когда закрываешь приложение)", v -> {
+                toast("Найди «Thor Lock» в списке (может быть в «Установленные приложения») и включи");
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            }));
+            list.addView(text("Если переключатель серый и пишет «Ограниченная настройка»: открой сведения о приложении → ⋮ в правом верхнем углу → «Разрешить ограниченные настройки», затем включи снова.", 13));
+            list.addView(button("Открыть сведения о приложении", v ->
+                    startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:" + getPackageName())))));
+        }
         if (overlayOk) list.addView(text("✓ Показ поверх других окон", 15));
-        else list.addView(button("Разрешить «Поверх других окон» (обязательно)", v ->
+        else list.addView(button("Разрешить «Поверх других окон» (нужно без спецвозможности)", v ->
                 startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:" + getPackageName())))));
         if (batteryOk) list.addView(text("✓ Без ограничений батареи", 15));
@@ -190,6 +203,49 @@ public class MainActivity extends Activity {
         disp.setOnItemSelectedListener(new SimpleSelect(pos -> prefs.setPatternDisplay(DISPLAY_VALUES[pos])));
         list.addView(disp);
 
+        // --- видео ---
+        section("Видео при разблокировке (как на Steam Deck)");
+        CheckBox videoOn = new CheckBox(this);
+        videoOn.setText("Показывать видео после разблокировки");
+        videoOn.setChecked(prefs.isVideoEnabled());
+        videoOn.setOnCheckedChangeListener((v, on) -> {
+            if (on && prefs.getVideoUri() == null) {
+                toast("Сначала выбери видео");
+                v.setChecked(false);
+                return;
+            }
+            prefs.setVideoEnabled(on);
+        });
+        list.addView(videoOn);
+        list.addView(text("Файл: " + videoName(), 14));
+        list.addView(button("Выбрать видео", v -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("video/*");
+            try {
+                startActivityForResult(i, REQ_VIDEO);
+            } catch (Exception e) {
+                toast("Не нашёл приложение для выбора файлов");
+            }
+        }));
+        CheckBox mute = new CheckBox(this);
+        mute.setText("Без звука");
+        mute.setChecked(prefs.isVideoMuted());
+        mute.setOnCheckedChangeListener((v, on) -> prefs.setVideoMuted(on));
+        list.addView(mute);
+        list.addView(button("Проверить видео", v -> {
+            if (!prefs.isVideoEnabled() || prefs.getVideoUri() == null) {
+                toast("Выбери видео и включи галочку");
+                return;
+            }
+            if (!Settings.canDrawOverlays(this) && !a11yRunning()) {
+                toast("Нужна спецвозможность или «Поверх других окон»");
+                return;
+            }
+            LockEngine.send(this, LockEngine.ACTION_TEST_VIDEO);
+        }));
+        list.addView(text("Видео идёт на верхнем экране, пропустить — тап или любая кнопка. Лучше всего mp4 (H.264), короткое, 3–15 секунд.", 13));
+
         // --- прочее ---
         section("Прочее");
         CheckBox boot = new CheckBox(this);
@@ -205,8 +261,8 @@ public class MainActivity extends Activity {
         sw.setChecked(prefs.isEnabled());
         sw.setOnCheckedChangeListener((v, on) -> {
             if (on) {
-                if (!Settings.canDrawOverlays(this)) {
-                    toast("Сначала разреши «Поверх других окон»");
+                if (!Settings.canDrawOverlays(this) && !a11yRunning()) {
+                    toast("Сначала включи спецвозможность или «Поверх других окон»");
                     v.setChecked(false);
                     return;
                 }
@@ -216,7 +272,8 @@ public class MainActivity extends Activity {
                     return;
                 }
                 prefs.setEnabled(true);
-                LockService.start(this, LockService.ACTION_REFRESH);
+                LockEngine.send(this, LockEngine.ACTION_REFRESH);
+                list.postDelayed(this::showSettings, 500);
             } else {
                 prefs.setEnabled(false);
                 LockService.stop(this);
@@ -225,15 +282,15 @@ public class MainActivity extends Activity {
         list.addView(sw);
 
         list.addView(button("Проверить блокировку (сама снимется через 60 с)", v -> {
-            if (!Settings.canDrawOverlays(this)) {
-                toast("Нет разрешения «Поверх других окон»");
+            if (!Settings.canDrawOverlays(this) && !a11yRunning()) {
+                toast("Нет разрешения «Поверх других окон» и спецвозможность выключена");
                 return;
             }
             if (!prefs.hasSecret(prefs.getMode())) {
                 toast("Сначала задай пароль");
                 return;
             }
-            LockService.start(this, LockService.ACTION_TEST_LOCK);
+            LockEngine.send(this, LockEngine.ACTION_TEST_LOCK);
         }));
 
         section("Если забыл пароль");
@@ -255,6 +312,41 @@ public class MainActivity extends Activity {
         list.addView(log);
 
         setContentView(scroll);
+    }
+
+    private static final int REQ_VIDEO = 42;
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != REQ_VIDEO || res != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        try {
+            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Exception e) {
+            EventLog.add(this, "Видео: не удалось сохранить доступ к файлу: " + e);
+        }
+        prefs.setVideoUri(uri.toString());
+        prefs.setVideoEnabled(true);
+        // После выбора файла снова проверять пароль не нужно.
+        verifiedUntil = SystemClock.elapsedRealtime() + VERIFY_WINDOW_MS;
+        toast("Видео выбрано");
+    }
+
+    private String videoName() {
+        String u = prefs.getVideoUri();
+        if (u == null) return "не выбран";
+        try (Cursor c = getContentResolver().query(Uri.parse(u),
+                new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) return c.getString(0);
+        } catch (Exception ignored) {
+        }
+        return "выбран (нет доступа к имени — выбери заново, если не играет)";
+    }
+
+    private boolean a11yRunning() {
+        LockEngine e = LockEngine.current;
+        return e != null && e.accessibility;
     }
 
     private String mark(String mode) {

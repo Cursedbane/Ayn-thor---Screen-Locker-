@@ -45,6 +45,10 @@ public class Unlocker {
 
     public String getMode() { return mode; }
 
+    void removePanel(LockPanel p) {
+        panels.remove(p);
+    }
+
     void addPanel(LockPanel p) {
         panels.add(p);
         p.setProgress(combo.size(), length);

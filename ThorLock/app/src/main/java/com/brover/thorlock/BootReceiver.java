@@ -9,11 +9,8 @@ public class BootReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (!new Prefs(context).isEnabled()) return;
         String action = Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())
-                ? LockService.ACTION_BOOT
-                : LockService.ACTION_REFRESH;
-        try {
-            LockService.start(context, action);
-        } catch (Exception ignored) {
-        }
+                ? LockEngine.ACTION_BOOT
+                : LockEngine.ACTION_REFRESH;
+        LockEngine.send(context, action);
     }
 }

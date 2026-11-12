@@ -37,6 +37,15 @@ public final class Prefs {
     public String getPatternDisplay() { return sp.getString("pattern_display", DISPLAY_AUTO); }
     public void setPatternDisplay(String v) { sp.edit().putString("pattern_display", v).apply(); }
 
+    public boolean isVideoEnabled() { return sp.getBoolean("video_on", false); }
+    public void setVideoEnabled(boolean v) { sp.edit().putBoolean("video_on", v).apply(); }
+
+    public String getVideoUri() { return sp.getString("video_uri", null); }
+    public void setVideoUri(String u) { sp.edit().putString("video_uri", u).apply(); }
+
+    public boolean isVideoMuted() { return sp.getBoolean("video_muted", false); }
+    public void setVideoMuted(boolean v) { sp.edit().putBoolean("video_muted", v).apply(); }
+
     /** Флаг "сейчас заблокировано" — переживает убийство процесса. */
     public boolean isLocked() { return sp.getBoolean("locked", false); }
     public void setLocked(boolean v) { sp.edit().putBoolean("locked", v).commit(); }
