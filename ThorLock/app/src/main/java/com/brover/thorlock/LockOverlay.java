@@ -62,10 +62,12 @@ public class LockOverlay implements Unlocker.Callback {
         }
     };
 
-    private final Runnable videoTimeout = () -> {
+    private final Runnable videoTimeout = this::onVideoTimeout;
+
+    private void onVideoTimeout() {
         EventLog.add(app, "Видео: остановлено по лимиту времени");
         stopVideo();
-    };
+    }
 
     public LockOverlay(Context host, boolean accessibility, Runnable onUnlocked) {
         this.host = host;
