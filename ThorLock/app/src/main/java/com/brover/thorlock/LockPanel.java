@@ -16,6 +16,7 @@ public class LockPanel extends LinearLayout {
     private final boolean handleKeys;
     private final TextView status;
     private final TextView progress;
+    private final TextView footer;
 
     public LockPanel(Context c, Unlocker u, boolean showPattern, String title, boolean handleKeys) {
         super(c);
@@ -53,12 +54,21 @@ public class LockPanel extends LinearLayout {
             addView(pv, new LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f));
         }
 
+        footer = text("", 14, 0xFFFFD54F, false);
+        footer.setVisibility(View.GONE);
+        addView(footer);
+
         u.addPanel(this);
     }
 
     public void setStatus(String s, boolean error) {
         status.setText(s);
         status.setTextColor(error ? 0xFFFF5252 : 0xFF9AA7B8);
+    }
+
+    public void setFooter(String s) {
+        footer.setText(s);
+        footer.setVisibility(s == null || s.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     public void setProgress(int entered, int total) {

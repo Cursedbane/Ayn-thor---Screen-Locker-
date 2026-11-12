@@ -11,32 +11,38 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
+import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.view.Display;
 
 /**
  * Фоновая служба: ловит выключение/включение экрана (закрытие/открытие Thor)
  * и показывает блокировку, если экран был выключен дольше заданного времени.
+ * Слушает и системные события SCREEN_OFF/ON, и состояние основного дисплея —
+ * на некоторых устройствах крышка гасит дисплей без "сна" системы.
  */
 public class LockService extends Service {
 
     public static final String ACTION_REFRESH = "com.brover.thorlock.REFRESH";
     public static final String ACTION_LOCK_NOW = "com.brover.thorlock.LOCK_NOW";
+    public static final String ACTION_TEST_LOCK = "com.brover.thorlock.TEST_LOCK";
     public static final String ACTION_BOOT = "com.brover.thorlock.BOOT";
-    public static final String ACTION_ALARM = "com.brover.thorlock.ALARM";
 
     private static final String CHANNEL = "thorlock_bg";
     private static final int NOTIF_ID = 1;
 
-    static LockService instance;
+    static volatile LockService instance;
 
     private Prefs prefs;
     private LockOverlay overlay;
+    private DisplayManager displayManager;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean screenOff = false;
     private long screenOffAt = -1;
 
     private final Runnable delayedLock = this::checkDelayedLock;
@@ -45,8 +51,30 @@ public class LockService extends Service {
         @Override
         public void onReceive(Context context, Intent intent) {
             String a = intent.getAction();
-            if (Intent.ACTION_SCREEN_OFF.equals(a)) onScreenOff();
-            else if (Intent.ACTION_SCREEN_ON.equals(a)) onScreenOn();
+            if (Intent.ACTION_SCREEN_OFF.equals(a)) onScreenOff("SCREEN_OFF");
+            else if (Intent.ACTION_SCREEN_ON.equals(a)) onScreenOn("SCREEN_ON");
+        }
+    };
+
+    private final DisplayManager.DisplayListener displayListener = new DisplayManager.DisplayListener() {
+        @Override
+        public void onDisplayAdded(int id) {}
+
+        @Override
+        public void onDisplayRemoved(int id) {}
+
+        @Override
+        public void onDisplayChanged(int id) {
+            if (id != Display.DEFAULT_DISPLAY) return;
+            Display d = displayManager.getDisplay(id);
+            if (d == null) return;
+            int st = d.getState();
+            if (st == Display.STATE_ON) {
+                onScreenOn("дисплей включён");
+            } else if (st == Display.STATE_OFF || st == Display.STATE_DOZE
+                    || st == Display.STATE_DOZE_SUSPEND) {
+                onScreenOff("дисплей выключен (state=" + st + ")");
+            }
         }
     };
 
@@ -57,6 +85,10 @@ public class LockService extends Service {
 
     public static void stop(Context c) {
         c.stopService(new Intent(c, LockService.class));
+    }
+
+    public static boolean isRunning() {
+        return instance != null;
     }
 
     @Override
@@ -79,22 +111,31 @@ public class LockService extends Service {
         IntentFilter f = new IntentFilter();
         f.addAction(Intent.ACTION_SCREEN_OFF);
         f.addAction(Intent.ACTION_SCREEN_ON);
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(screenReceiver, f, Context.RECEIVER_NOT_EXPORTED);
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(screenReceiver, f, Context.RECEIVER_EXPORTED);
         else registerReceiver(screenReceiver, f);
 
+        displayManager = getSystemService(DisplayManager.class);
+        displayManager.registerDisplayListener(displayListener, handler);
+
+        PowerManager pm = getSystemService(PowerManager.class);
+        screenOff = pm != null && !pm.isInteractive();
+
+        EventLog.add(this, "Служба запущена (защита " + (prefs.isEnabled() ? "вкл" : "выкл")
+                + ", задержка " + prefs.getDelaySec() + " с)");
+
         // Если процесс убили, пока устройство было заблокировано, — блокируем снова.
-        if (prefs.isLocked() && hasSecret()) overlay.show();
+        if (prefs.isLocked() && hasSecret()) overlay.show(false);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent != null ? intent.getAction() : null;
         if (ACTION_LOCK_NOW.equals(action)) {
-            lockNow();
+            lockNow("по кнопке");
+        } else if (ACTION_TEST_LOCK.equals(action)) {
+            if (hasSecret() && !overlay.isShowing()) overlay.show(true);
         } else if (ACTION_BOOT.equals(action)) {
-            if (prefs.isEnabled() && prefs.isLockOnBoot()) lockNow();
-        } else if (ACTION_ALARM.equals(action)) {
-            checkDelayedLock();
+            if (prefs.isEnabled() && prefs.isLockOnBoot()) lockNow("после включения");
         }
         if (!prefs.isEnabled() && !overlay.isShowing()) {
             stopSelf();
@@ -111,13 +152,23 @@ public class LockService extends Service {
         return prefs.isEnabled() && hasSecret();
     }
 
-    private void onScreenOff() {
+    private void onScreenOff(String source) {
+        if (screenOff) return;
+        screenOff = true;
         MainActivity.resetVerification();
-        if (overlay.isShowing() || !active()) return;
+        if (overlay.isShowing()) {
+            EventLog.add(this, "Экран выкл [" + source + "], блокировка уже на экране");
+            return;
+        }
+        if (!active()) {
+            EventLog.add(this, "Экран выкл [" + source + "], но защита неактивна");
+            return;
+        }
         screenOffAt = SystemClock.elapsedRealtime();
         int delay = prefs.getDelaySec();
+        EventLog.add(this, "Экран выкл [" + source + "], блокировка через " + delay + " с");
         if (delay <= 0) {
-            lockNow();
+            lockNow("сразу при выключении");
             return;
         }
         long ms = delay * 1000L;
@@ -125,30 +176,38 @@ public class LockService extends Service {
         scheduleAlarm(screenOffAt + ms);
     }
 
-    private void onScreenOn() {
+    private void onScreenOn(String source) {
+        if (!screenOff) return;
+        screenOff = false;
         handler.removeCallbacks(delayedLock);
         cancelAlarm();
         if (screenOffAt > 0 && active() && !overlay.isShowing()) {
             long off = SystemClock.elapsedRealtime() - screenOffAt;
-            if (off >= prefs.getDelaySec() * 1000L) lockNow();
+            EventLog.add(this, "Экран вкл [" + source + "], был выключен " + (off / 1000) + " с");
+            if (off >= prefs.getDelaySec() * 1000L) lockNow("экран был выключен долго");
+        } else {
+            EventLog.add(this, "Экран вкл [" + source + "]");
         }
         screenOffAt = -1;
     }
 
     /** Вызывается таймером, пока экран ещё выключен: блокируем заранее, чтобы при открытии ничего не мелькнуло. */
     void checkDelayedLock() {
-        if (screenOffAt <= 0 || overlay.isShowing() || !active()) return;
-        PowerManager pm = getSystemService(PowerManager.class);
-        if (pm != null && pm.isInteractive()) return;
+        if (!screenOff || screenOffAt <= 0 || overlay.isShowing() || !active()) return;
         long off = SystemClock.elapsedRealtime() - screenOffAt;
-        if (off >= prefs.getDelaySec() * 1000L - 1500) lockNow();
+        if (off >= prefs.getDelaySec() * 1000L - 1500) lockNow("таймер, пока закрыт");
     }
 
-    private void lockNow() {
-        if (!hasSecret()) return;
+    private void lockNow(String reason) {
+        if (!hasSecret()) {
+            EventLog.add(this, "Не блокирую: пароль не задан");
+            return;
+        }
         MainActivity.resetVerification();
+        if (overlay.isShowing() && overlay.isTest()) overlay.hide();
+        EventLog.add(this, "Блокировка: " + reason);
         prefs.setLocked(true);
-        overlay.show();
+        if (!overlay.show(false)) prefs.setLocked(false);
     }
 
     private PendingIntent alarmIntent() {
@@ -167,7 +226,8 @@ public class LockService extends Service {
             } else {
                 am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, atElapsed, alarmIntent());
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            EventLog.add(this, "Будильник не поставлен: " + e);
         }
     }
 
@@ -201,11 +261,16 @@ public class LockService extends Service {
 
     @Override
     public void onDestroy() {
+        EventLog.add(this, "Служба остановлена");
         instance = null;
         handler.removeCallbacks(delayedLock);
         cancelAlarm();
         try {
             unregisterReceiver(screenReceiver);
+        } catch (Exception ignored) {
+        }
+        try {
+            displayManager.unregisterDisplayListener(displayListener);
         } catch (Exception ignored) {
         }
         overlay.hide();

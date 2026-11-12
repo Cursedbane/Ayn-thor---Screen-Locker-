@@ -24,7 +24,9 @@ public class Unlocker {
     private static int fails = 0;
     private static long blockedUntil = 0;
 
+    private final Context app;
     private final Prefs prefs;
+    private boolean loggedKey = false;
     private final String mode;
     private final Callback callback;
     private final int length;
@@ -34,6 +36,7 @@ public class Unlocker {
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     public Unlocker(Context c, String mode, Callback cb) {
+        this.app = c.getApplicationContext();
         this.prefs = new Prefs(c);
         this.mode = mode;
         this.callback = cb;
@@ -58,7 +61,9 @@ public class Unlocker {
             handler.postDelayed(v::clear, 600);
             return;
         }
-        if (prefs.check(mode, pattern)) {
+        boolean ok = prefs.check(mode, pattern);
+        EventLog.add(app, "Рисунок из " + count + " точек: " + (ok ? "верно" : "неверно"));
+        if (ok) {
             success();
         } else {
             fail();
@@ -92,6 +97,10 @@ public class Unlocker {
     }
 
     private void onPress(int code) {
+        if (!loggedKey) {
+            loggedKey = true;
+            EventLog.add(app, "Получена кнопка геймпада: " + KeyNames.name(code));
+        }
         if (!Prefs.MODE_GAMEPAD.equals(mode)) {
             status("Разблокировка рисунком на экране", false);
             return;
@@ -102,7 +111,9 @@ public class Unlocker {
         if (combo.size() >= length) {
             String entered = KeyNames.join(combo);
             combo.clear();
-            if (prefs.check(mode, entered)) {
+            boolean ok = prefs.check(mode, entered);
+            EventLog.add(app, "Комбинация: " + (ok ? "верно" : "неверно"));
+            if (ok) {
                 success();
             } else {
                 fail();
@@ -141,6 +152,10 @@ public class Unlocker {
         blockedUntil = 0;
         status("", false);
         callback.onUnlocked();
+    }
+
+    public void footer(String s) {
+        for (LockPanel p : panels) p.setFooter(s);
     }
 
     private void progress() {

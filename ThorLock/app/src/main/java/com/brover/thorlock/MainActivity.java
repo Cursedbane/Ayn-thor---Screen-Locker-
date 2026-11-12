@@ -59,6 +59,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Самовосстановление: защита включена, а служба не запущена.
+        if (prefs.isEnabled() && !LockService.isRunning()) {
+            try {
+                LockService.start(this, LockService.ACTION_REFRESH);
+            } catch (Exception e) {
+                EventLog.add(this, "Не удалось запустить службу: " + e);
+            }
+        }
         String mode = prefs.getMode();
         long now = SystemClock.elapsedRealtime();
         if (prefs.hasSecret(mode) && now > verifiedUntil) {
@@ -108,6 +116,11 @@ public class MainActivity extends Activity {
         TextView title = text("🔒 Thor Lock", 24);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         list.addView(title);
+        TextView state = text(prefs.isEnabled()
+                ? (LockService.isRunning() ? "● Защита работает" : "● Защита включена, служба запускается…")
+                : "○ Защита выключена", 15);
+        state.setTextColor(prefs.isEnabled() ? 0xFF66BB6A : 0xFFFF8A65);
+        list.addView(state);
 
         // --- разрешения ---
         boolean overlayOk = Settings.canDrawOverlays(this);
@@ -168,6 +181,7 @@ public class MainActivity extends Activity {
         delay.setSelection(indexOf(DELAYS, prefs.getDelaySec(), 3));
         delay.setOnItemSelectedListener(new SimpleSelect(pos -> prefs.setDelaySec(DELAYS[pos])));
         list.addView(delay);
+        list.addView(text("Для проверки поставь «Сразу», закрой крышку на пару секунд и открой.", 13));
 
         // --- экран для рисунка ---
         section("Где рисовать узор");
@@ -210,7 +224,7 @@ public class MainActivity extends Activity {
         });
         list.addView(sw);
 
-        list.addView(button("Заблокировать сейчас (проверка)", v -> {
+        list.addView(button("Проверить блокировку (сама снимется через 60 с)", v -> {
             if (!Settings.canDrawOverlays(this)) {
                 toast("Нет разрешения «Поверх других окон»");
                 return;
@@ -219,13 +233,26 @@ public class MainActivity extends Activity {
                 toast("Сначала задай пароль");
                 return;
             }
-            LockService.start(this, LockService.ACTION_LOCK_NOW);
+            LockService.start(this, LockService.ACTION_TEST_LOCK);
         }));
 
         section("Если забыл пароль");
         list.addView(text("Перезагрузи Thor в безопасный режим (зажми «Перезагрузить» в меню питания) — "
                 + "сторонние приложения там не запускаются. Затем удали или очисти данные Thor Lock "
                 + "в настройках Android.", 14));
+
+        section("Журнал событий");
+        TextView log = text(EventLog.get(this), 11);
+        log.setTypeface(Typeface.MONOSPACE);
+        log.setTextIsSelectable(true);
+        LinearLayout row = new LinearLayout(this);
+        row.addView(button("Обновить", v -> showSettings()));
+        row.addView(button("Очистить", v -> {
+            EventLog.clear(this);
+            showSettings();
+        }));
+        list.addView(row);
+        list.addView(log);
 
         setContentView(scroll);
     }
