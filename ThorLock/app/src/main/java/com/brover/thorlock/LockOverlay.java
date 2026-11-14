@@ -3,6 +3,7 @@ package com.brover.thorlock;
 import android.content.Context;
 import android.graphics.PixelFormat;
 import android.hardware.display.DisplayManager;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -163,7 +164,9 @@ public class LockOverlay implements Unlocker.Callback {
         }
 
         if (views.isEmpty()) return false;
-        views.get(0).requestFocus();
+        // Без спецвозможности кнопки ловятся только через фокус окна, поэтому фокус берём.
+        // Со спецвозможностью фокус у игры не отнимаем — эмулятор вообще не замечает блокировку.
+        if (focusable()) views.get(0).requestFocus();
 
         if (test) {
             testLeft = TEST_SECONDS;
@@ -253,6 +256,12 @@ public class LockOverlay implements Unlocker.Callback {
     private View createVideoView(Context c, Uri uri, boolean muted) {
         FrameLayout root = createBlackView(c);
         VideoView vv = new VideoView(c);
+        // Не отбираем звук у игры: без звука — вообще не трогаем аудиофокус,
+        // со звуком — игра только приглушается и сама возвращает громкость.
+        if (Build.VERSION.SDK_INT >= 26) {
+            vv.setAudioFocusRequest(muted ? AudioManager.AUDIOFOCUS_NONE
+                    : AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+        }
         vv.setOnPreparedListener(mp -> {
             if (muted) mp.setVolume(0f, 0f);
             vv.start();
@@ -340,9 +349,8 @@ public class LockOverlay implements Unlocker.Callback {
     private boolean attach(Context wc, Display d, ViewFactory f, String label) {
         WindowManager wm = (WindowManager) wc.getSystemService(Context.WINDOW_SERVICE);
         View v = f.create(wc);
-        hideSystemBars(v);
         try {
-            wm.addView(v, params(windowType));
+            wm.addView(v, params(windowType, focusable()));
         } catch (RuntimeException e) {
             if (v instanceof LockPanel && unlocker != null) unlocker.removePanel((LockPanel) v);
             throw e;
@@ -354,30 +362,25 @@ public class LockOverlay implements Unlocker.Callback {
         return true;
     }
 
-    private static WindowManager.LayoutParams params(int type) {
+    /** Брать ли фокус ввода. Со спецвозможностью кнопки приходят через неё, фокус не нужен. */
+    private boolean focusable() {
+        return !accessibility;
+    }
+
+    private static WindowManager.LayoutParams params(int type, boolean focusable) {
+        int flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED;
+        if (!focusable) flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
-                type,
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                        | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
-                PixelFormat.OPAQUE);
+                type, flags, PixelFormat.OPAQUE);
         if (Build.VERSION.SDK_INT >= 28) {
             lp.layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
         lp.setTitle("ThorLock");
         return lp;
-    }
-
-    @SuppressWarnings("deprecation")
-    private static void hideSystemBars(View v) {
-        v.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
     }
 }

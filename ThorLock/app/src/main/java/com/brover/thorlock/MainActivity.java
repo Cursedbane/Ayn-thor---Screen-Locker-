@@ -111,7 +111,7 @@ public class MainActivity extends Activity {
         list.setPadding(pad, pad, pad, pad);
         scroll.addView(list);
 
-        TextView title = text("🔒 Thor Lock", 24);
+        TextView title = text("🔒 Thor Lock  v0.2", 24);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         list.addView(title);
         String stateText;
