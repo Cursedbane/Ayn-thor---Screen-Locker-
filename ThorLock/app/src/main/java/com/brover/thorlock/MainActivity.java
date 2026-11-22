@@ -385,7 +385,7 @@ public class MainActivity extends Activity {
 
     // ---------- helpers ----------
 
-    static final String VERSION = "0.2.3";
+    static final String VERSION = "0.2.4";
 
     private String t(int id) {
         return L.t(this, id);

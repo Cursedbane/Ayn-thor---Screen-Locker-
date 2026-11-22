@@ -41,7 +41,8 @@ public class LockAccessibilityService extends AccessibilityService {
         if (pkg.equals(getPackageName())) return;
 
         if (!SYSTEM_UI.equals(pkg)) {
-            engine.onForegroundApp(pkg);
+            CharSequence cls = event.getClassName();
+            engine.onForegroundApp(pkg, cls != null ? cls.toString() : null);
             return;
         }
         // Шторку закрываем только когда экран уже включён какое-то время:

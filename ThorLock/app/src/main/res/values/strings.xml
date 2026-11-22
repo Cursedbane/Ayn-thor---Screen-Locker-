@@ -41,7 +41,7 @@
     <string name="disp_top">Top screen</string>
     <string name="sec_game_return">Game protection</string>
     <string name="auto_return">Bring the game back if it gets minimized when the lid closes or opens</string>
-    <string name="auto_return_hint">On the Thor, the launcher or frontend sometimes jumps to the front when the lid closes or opens, and the emulator goes to the background. Thor Lock notices this and brings the game back without restarting it. Needs Accessibility. If the emulator menu appears instead of the game, press Back once.</string>
+    <string name="auto_return_hint">On the Thor, the launcher or frontend sometimes jumps to the front when the lid closes or opens, and the emulator goes to the background. Thor Lock notices this and brings the game back without restarting it. Needs Accessibility. It returns the game via the task switcher, so the emulator menu should not appear.</string>
     <string name="sec_video">Video on unlock (like Steam Deck)</string>
     <string name="video_show">Show a video after unlocking</string>
     <string name="video_pick_first">Choose a video first</string>

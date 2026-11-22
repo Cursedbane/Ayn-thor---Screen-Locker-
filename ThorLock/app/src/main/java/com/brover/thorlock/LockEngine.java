@@ -208,11 +208,12 @@ public class LockEngine {
     }
 
     /** Спецвозможности сообщают, какое приложение сейчас на экране. */
-    public void onForegroundApp(String pkg) {
-        if (pkg == null || pkg.equals(foregroundApp)) return;
+    public void onForegroundApp(String pkg, String cls) {
+        if (pkg == null) return;
+        gameGuard.onWindow(pkg, cls); // класс окна нужен, даже если приложение то же
+        if (pkg.equals(foregroundApp)) return;
         String prev = foregroundApp;
         foregroundApp = pkg;
-        gameGuard.onForeground(pkg);
         if (screenOff || SystemClock.elapsedRealtime() < watchUntil || overlay.isShowing()) {
             EventLog.add(host, "Foreground app: " + prev + " -> " + pkg);
         }

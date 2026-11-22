@@ -41,7 +41,7 @@
     <string name="disp_top">Ülemine ekraan</string>
     <string name="sec_game_return">Mängu kaitse</string>
     <string name="auto_return">Too mäng tagasi, kui see kaane sulgemisel või avamisel minimeeritakse</string>
-    <string name="auto_return_hint">Thoril hüppab kaane sulgemisel või avamisel mõnikord esile käivitaja või kasutajaliides ja emulaator läheb taustale. Thor Lock märkab seda ja toob mängu tagasi ilma seda taaskäivitamata. Vaja on hõlbustusfunktsiooni. Kui mängu asemel ilmub emulaatori menüü, vajuta üks kord „Tagasi“.</string>
+    <string name="auto_return_hint">Thoril hüppab kaane sulgemisel või avamisel mõnikord esile käivitaja või kasutajaliides ja emulaator läheb taustale. Thor Lock märkab seda ja toob mängu tagasi ilma seda taaskäivitamata. Vaja on hõlbustusfunktsiooni. Mäng tuuakse tagasi ülesannete vahetaja kaudu, seega emulaatori menüüd ei tohiks ilmuda.</string>
     <string name="sec_video">Video avamisel (nagu Steam Deckil)</string>
     <string name="video_show">Näita pärast avamist videot</string>
     <string name="video_pick_first">Vali kõigepealt video</string>

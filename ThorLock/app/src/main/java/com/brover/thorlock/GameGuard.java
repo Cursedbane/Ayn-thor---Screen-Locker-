@@ -1,5 +1,6 @@
 package com.brover.thorlock;
 
+import android.accessibilityservice.AccessibilityService;
 import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
@@ -38,6 +39,9 @@ final class GameGuard {
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private String foreground;      // приложение на экране сейчас
+    private String foregroundClass; // окно (activity) на экране сейчас
+    private String gameClass;       // окно игры (например, экран эмуляции Azahar)
+    private boolean returning;      // идёт возврат — не переучиваем gameClass
     private String game;            // последнее «обычное» приложение (игра/эмулятор)
     private String gameOpener;      // что было перед игрой (обычно фронтенд)
     private String minimized;       // игра, которую только что свернуло
@@ -75,15 +79,22 @@ final class GameGuard {
         }
     }
 
-    void onForeground(String pkg) {
+    void onWindow(String pkg, String cls) {
         String prev = foreground;
         foreground = pkg;
+        foregroundClass = cls;
         if (isGameCandidate(pkg)) {
-            if (!pkg.equals(game)) gameOpener = prev;
-            game = pkg;
+            if (!pkg.equals(game)) {
+                if (prev != null && !prev.equals(pkg)) gameOpener = prev;
+                game = pkg;
+                gameClass = null;
+            }
+            // Запоминаем экран игры (activity), чтобы потом отличить его от главного меню эмулятора.
+            if (!returning && cls != null && cls.contains("Activity")) gameClass = cls;
             minimized = null;
             return;
         }
+        if (pkg.equals(prev)) return;
         if (prev != null && prev.equals(game) && isLauncherLike(pkg)) {
             minimized = prev;
             minimizedAt = SystemClock.elapsedRealtime();
@@ -113,25 +124,75 @@ final class GameGuard {
         handler.postDelayed(() -> bringToFront(target), RETURN_DELAY_MS);
     }
 
+    /**
+     * Возврат игры.
+     * Шаг 1 — как советует фронтенд: через переключатель задач (двойное «Недавние»).
+     * Так задача возвращается как есть, без запуска чего-либо нового.
+     * Шаг 2 (если не вышло) — запуск эмулятора; если поверх игры открылось главное меню
+     * эмулятора, один раз «Назад», чтобы показать игру под ним.
+     */
     private void bringToFront(String pkg) {
         if (foreground != null && !isLauncherLike(foreground)) {
             EventLog.add(host, "Game return cancelled: " + foreground + " is on screen now");
             return;
         }
+        returning = true;
+        if (host instanceof AccessibilityService) {
+            AccessibilityService a11y = (AccessibilityService) host;
+            EventLog.add(host, "Game return step 1: task switcher (game window: " + gameClass + ")");
+            a11y.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS);
+            handler.postDelayed(() -> a11y.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS), 450);
+            handler.postDelayed(() -> afterTaskSwitcher(pkg), 1800);
+        } else {
+            launchApp(pkg);
+        }
+    }
+
+    private void afterTaskSwitcher(String pkg) {
+        if (pkg.equals(foreground)) {
+            EventLog.add(host, "Game brought back via task switcher: " + foregroundClass);
+            returning = false;
+            return;
+        }
+        EventLog.add(host, "Task switcher did not work (on screen: " + foreground + "), step 2");
+        launchApp(pkg);
+    }
+
+    private void launchApp(String pkg) {
         try {
             Intent i = host.getPackageManager().getLaunchIntentForPackage(pkg);
             if (i == null) {
                 EventLog.add(host, "Game return failed: no launch intent for " + pkg);
+                returning = false;
                 return;
             }
-            // Как нажатие на значок: существующая задача выходит вперёд, игра не перезапускается.
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             ActivityOptions opts = ActivityOptions.makeBasic();
             opts.setLaunchDisplayId(Display.DEFAULT_DISPLAY);
             host.startActivity(i, opts.toBundle());
-            EventLog.add(host, "Game brought back: " + pkg);
+            EventLog.add(host, "Game return step 2: launched " + pkg);
+            handler.postDelayed(() -> closeMenuOverGame(pkg), 1300);
         } catch (Throwable t) {
             EventLog.add(host, "Game return failed: " + t);
+            returning = false;
+        }
+    }
+
+    /** Если вместо экрана игры видно другое окно эмулятора (главное меню) — «Назад» один раз. */
+    private void closeMenuOverGame(String pkg) {
+        boolean menuOnTop = pkg.equals(foreground) && gameClass != null && foregroundClass != null
+                && !foregroundClass.equals(gameClass);
+        if (menuOnTop && host instanceof AccessibilityService) {
+            EventLog.add(host, "Emulator menu (" + foregroundClass + ") over the game, pressing Back");
+            ((AccessibilityService) host).performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+            handler.postDelayed(() -> {
+                EventLog.add(host, "After Back on screen: " + foreground + " / " + foregroundClass
+                        + (gameClass != null && gameClass.equals(foregroundClass) ? " (game is back)" : ""));
+                returning = false;
+            }, 1200);
+        } else {
+            EventLog.add(host, "Game return done, on screen: " + foreground + " / " + foregroundClass);
+            returning = false;
         }
     }
 
