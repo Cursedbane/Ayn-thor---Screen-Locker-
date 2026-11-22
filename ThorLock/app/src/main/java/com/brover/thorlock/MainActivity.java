@@ -36,13 +36,11 @@ public class MainActivity extends Activity {
     private static long verifiedUntil = 0;
 
     private static final int[] DELAYS = {0, 15, 30, 60, 120, 300, 600, 1800};
-    private static final String[] DELAY_LABELS = {
-            "Сразу", "15 секунд", "30 секунд", "1 минута", "2 минуты", "5 минут", "10 минут", "30 минут"};
 
     private static final String[] DISPLAY_VALUES = {
             Prefs.DISPLAY_AUTO, Prefs.DISPLAY_SECONDARY, Prefs.DISPLAY_PRIMARY};
-    private static final String[] DISPLAY_LABELS = {
-            "Авто (нижний, если есть)", "Нижний экран", "Верхний экран"};
+
+    private static final String[] LANG_VALUES = {Prefs.LANG_AUTO, "en", "ru", "et"};
 
     private Prefs prefs;
     private Unlocker verifyUnlocker;
@@ -83,7 +81,7 @@ public class MainActivity extends Activity {
             verifyUnlocker = null;
             showSettings();
         });
-        LockPanel panel = new LockPanel(this, verifyUnlocker, true, "Подтверди, что это ты", false);
+        LockPanel panel = new LockPanel(this, verifyUnlocker, true, t(R.string.verify_title), false);
         setContentView(panel);
     }
 
@@ -111,17 +109,29 @@ public class MainActivity extends Activity {
         list.setPadding(pad, pad, pad, pad);
         scroll.addView(list);
 
-        TextView title = text("🔒 Thor Lock  v0.2", 24);
+        TextView title = text("🔒 Thor Lock  v" + VERSION, 24);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         list.addView(title);
         String stateText;
-        if (!prefs.isEnabled()) stateText = "○ Защита выключена";
-        else if (a11yRunning()) stateText = "● Защита работает (через спецвозможности — надёжно)";
-        else if (LockEngine.isRunning()) stateText = "● Защита работает (фоновая служба — может умирать, включи спецвозможность)";
-        else stateText = "● Защита включена, запускается…";
+        if (!prefs.isEnabled()) stateText = t(R.string.state_off);
+        else if (a11yRunning()) stateText = t(R.string.state_a11y);
+        else if (LockEngine.isRunning()) stateText = t(R.string.state_service);
+        else stateText = t(R.string.state_starting);
         TextView state = text(stateText, 15);
         state.setTextColor(prefs.isEnabled() ? 0xFF66BB6A : 0xFFFF8A65);
         list.addView(state);
+
+        // --- язык ---
+        section(t(R.string.sec_language));
+        String[] langLabels = {t(R.string.lang_auto), "English", "Русский", "Eesti"};
+        Spinner lang = spinner(langLabels);
+        lang.setSelection(indexOf(LANG_VALUES, prefs.getLanguage()));
+        lang.setOnItemSelectedListener(new SimpleSelect(pos -> {
+            if (LANG_VALUES[pos].equals(prefs.getLanguage())) return;
+            prefs.setLanguage(LANG_VALUES[pos]);
+            list.post(this::showSettings);
+        }));
+        list.addView(lang);
 
         // --- разрешения ---
         boolean overlayOk = Settings.canDrawOverlays(this);
@@ -130,25 +140,25 @@ public class MainActivity extends Activity {
         PowerManager pm = getSystemService(PowerManager.class);
         boolean batteryOk = pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
 
-        section("Разрешения");
+        section(t(R.string.sec_permissions));
         if (a11yRunning()) {
-            list.addView(text("✓ Спецвозможность Thor Lock включена", 15));
+            list.addView(text(t(R.string.a11y_on), 15));
         } else {
-            list.addView(button("Включить спецвозможность Thor Lock (ВАЖНО: без неё защита отключается, когда закрываешь приложение)", v -> {
-                toast("Найди «Thor Lock» в списке (может быть в «Установленные приложения») и включи");
+            list.addView(button(t(R.string.a11y_enable), v -> {
+                toast(t(R.string.a11y_toast));
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
             }));
-            list.addView(text("Если переключатель серый и пишет «Ограниченная настройка»: открой сведения о приложении → ⋮ в правом верхнем углу → «Разрешить ограниченные настройки», затем включи снова.", 13));
-            list.addView(button("Открыть сведения о приложении", v ->
+            list.addView(text(t(R.string.a11y_restricted), 13));
+            list.addView(button(t(R.string.open_app_info), v ->
                     startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                             Uri.parse("package:" + getPackageName())))));
         }
-        if (overlayOk) list.addView(text("✓ Показ поверх других окон", 15));
-        else list.addView(button("Разрешить «Поверх других окон» (нужно без спецвозможности)", v ->
+        if (overlayOk) list.addView(text(t(R.string.overlay_ok), 15));
+        else list.addView(button(t(R.string.overlay_ask), v ->
                 startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:" + getPackageName())))));
-        if (batteryOk) list.addView(text("✓ Без ограничений батареи", 15));
-        else list.addView(button("Отключить оптимизацию батареи (рекомендуется)", v -> {
+        if (batteryOk) list.addView(text(t(R.string.battery_ok), 15));
+        else list.addView(button(t(R.string.battery_ask), v -> {
             try {
                 startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                         Uri.parse("package:" + getPackageName())));
@@ -156,20 +166,20 @@ public class MainActivity extends Activity {
                 startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
             }
         }));
-        if (notifOk) list.addView(text("✓ Уведомления", 15));
-        else list.addView(button("Разрешить уведомления (для фоновой работы)", v ->
+        if (notifOk) list.addView(text(t(R.string.notif_ok), 15));
+        else list.addView(button(t(R.string.notif_ask), v ->
                 requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1)));
 
         // --- способ разблокировки ---
-        section("Способ разблокировки");
+        section(t(R.string.sec_method));
         String mode = prefs.getMode();
         RadioGroup rg = new RadioGroup(this);
         RadioButton rbPattern = new RadioButton(this);
         rbPattern.setId(View.generateViewId());
-        rbPattern.setText("Рисунок по 9 точкам " + mark(Prefs.MODE_PATTERN));
+        rbPattern.setText(t(R.string.method_pattern, mark(Prefs.MODE_PATTERN)));
         RadioButton rbPad = new RadioButton(this);
         rbPad.setId(View.generateViewId());
-        rbPad.setText("Комбинация кнопок геймпада " + mark(Prefs.MODE_GAMEPAD));
+        rbPad.setText(t(R.string.method_gamepad, mark(Prefs.MODE_GAMEPAD)));
         rg.addView(rbPattern);
         rg.addView(rbPad);
         rg.check(Prefs.MODE_PATTERN.equals(mode) ? rbPattern.getId() : rbPad.getId());
@@ -179,95 +189,112 @@ public class MainActivity extends Activity {
             if (!prefs.hasSecret(m) && prefs.isEnabled()) {
                 prefs.setEnabled(false);
                 LockService.stop(this);
-                toast("Защита выключена: для этого способа ещё не задан пароль");
+                toast(t(R.string.toast_mode_no_secret));
             }
             list.post(this::showSettings);
         });
         list.addView(rg);
 
-        list.addView(button("Задать / изменить рисунок", v -> openSetup(Prefs.MODE_PATTERN)));
-        list.addView(button("Задать / изменить комбинацию кнопок", v -> openSetup(Prefs.MODE_GAMEPAD)));
+        list.addView(button(t(R.string.btn_set_pattern), v -> openSetup(Prefs.MODE_PATTERN)));
+        list.addView(button(t(R.string.btn_set_combo), v -> openSetup(Prefs.MODE_GAMEPAD)));
 
         // --- задержка ---
-        section("Блокировать, если экран выключен дольше");
-        Spinner delay = spinner(DELAY_LABELS);
+        section(t(R.string.sec_delay));
+        String[] delayLabels = {t(R.string.delay_now), t(R.string.delay_sec, 15), t(R.string.delay_sec, 30),
+                t(R.string.delay_min1), t(R.string.delay_min2), t(R.string.delay_min, 5),
+                t(R.string.delay_min, 10), t(R.string.delay_min, 30)};
+        Spinner delay = spinner(delayLabels);
         delay.setSelection(indexOf(DELAYS, prefs.getDelaySec(), 3));
         delay.setOnItemSelectedListener(new SimpleSelect(pos -> prefs.setDelaySec(DELAYS[pos])));
         list.addView(delay);
-        list.addView(text("Для проверки поставь «Сразу», закрой крышку на пару секунд и открой.", 13));
+        list.addView(text(t(R.string.delay_hint), 13));
 
         // --- экран для рисунка ---
-        section("Где рисовать узор");
-        Spinner disp = spinner(DISPLAY_LABELS);
+        section(t(R.string.sec_pattern_display));
+        String[] dispLabels = {t(R.string.disp_auto), t(R.string.disp_bottom), t(R.string.disp_top)};
+        Spinner disp = spinner(dispLabels);
         disp.setSelection(indexOf(DISPLAY_VALUES, prefs.getPatternDisplay()));
         disp.setOnItemSelectedListener(new SimpleSelect(pos -> prefs.setPatternDisplay(DISPLAY_VALUES[pos])));
         list.addView(disp);
 
+
+        // --- защита игры ---
+        section(t(R.string.sec_game_return));
+        CheckBox autoReturn = new CheckBox(this);
+        autoReturn.setText(t(R.string.auto_return));
+        autoReturn.setChecked(prefs.isAutoReturn());
+        autoReturn.setOnCheckedChangeListener((v, on) -> {
+            prefs.setAutoReturn(on);
+            EventLog.add(this, "Settings: auto return game " + (on ? "ON" : "OFF"));
+        });
+        list.addView(autoReturn);
+        list.addView(text(t(R.string.auto_return_hint), 13));
+
         // --- видео ---
-        section("Видео при разблокировке (как на Steam Deck)");
+        section(t(R.string.sec_video));
         CheckBox videoOn = new CheckBox(this);
-        videoOn.setText("Показывать видео после разблокировки");
+        videoOn.setText(t(R.string.video_show));
         videoOn.setChecked(prefs.isVideoEnabled());
         videoOn.setOnCheckedChangeListener((v, on) -> {
             if (on && prefs.getVideoUri() == null) {
-                toast("Сначала выбери видео");
+                toast(t(R.string.video_pick_first));
                 v.setChecked(false);
                 return;
             }
             prefs.setVideoEnabled(on);
         });
         list.addView(videoOn);
-        list.addView(text("Файл: " + videoName(), 14));
-        list.addView(button("Выбрать видео", v -> {
+        list.addView(text(t(R.string.video_file, videoName()), 14));
+        list.addView(button(t(R.string.video_pick), v -> {
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             i.addCategory(Intent.CATEGORY_OPENABLE);
             i.setType("video/*");
             try {
                 startActivityForResult(i, REQ_VIDEO);
             } catch (Exception e) {
-                toast("Не нашёл приложение для выбора файлов");
+                toast(t(R.string.video_no_picker));
             }
         }));
         CheckBox mute = new CheckBox(this);
-        mute.setText("Без звука");
+        mute.setText(t(R.string.video_mute));
         mute.setChecked(prefs.isVideoMuted());
         mute.setOnCheckedChangeListener((v, on) -> prefs.setVideoMuted(on));
         list.addView(mute);
-        list.addView(button("Проверить видео", v -> {
+        list.addView(button(t(R.string.video_test), v -> {
             if (!prefs.isVideoEnabled() || prefs.getVideoUri() == null) {
-                toast("Выбери видео и включи галочку");
+                toast(t(R.string.video_test_need));
                 return;
             }
             if (!Settings.canDrawOverlays(this) && !a11yRunning()) {
-                toast("Нужна спецвозможность или «Поверх других окон»");
+                toast(t(R.string.need_a11y_or_overlay));
                 return;
             }
             LockEngine.send(this, LockEngine.ACTION_TEST_VIDEO);
         }));
-        list.addView(text("Видео идёт на верхнем экране, пропустить — тап или любая кнопка. Лучше всего mp4 (H.264), короткое, 3–15 секунд.", 13));
+        list.addView(text(t(R.string.video_hint), 13));
 
         // --- прочее ---
-        section("Прочее");
+        section(t(R.string.sec_other));
         CheckBox boot = new CheckBox(this);
-        boot.setText("Блокировать после включения устройства");
+        boot.setText(t(R.string.lock_on_boot));
         boot.setChecked(prefs.isLockOnBoot());
         boot.setOnCheckedChangeListener((v, on) -> prefs.setLockOnBoot(on));
         list.addView(boot);
 
         Switch sw = new Switch(this);
-        sw.setText("Защита включена");
+        sw.setText(t(R.string.protection_switch));
         sw.setTextSize(18);
         sw.setPadding(0, dp(12), 0, dp(12));
         sw.setChecked(prefs.isEnabled());
         sw.setOnCheckedChangeListener((v, on) -> {
             if (on) {
                 if (!Settings.canDrawOverlays(this) && !a11yRunning()) {
-                    toast("Сначала включи спецвозможность или «Поверх других окон»");
+                    toast(t(R.string.toast_need_perm_first));
                     v.setChecked(false);
                     return;
                 }
                 if (!prefs.hasSecret(prefs.getMode())) {
-                    toast("Сначала задай рисунок или комбинацию");
+                    toast(t(R.string.toast_set_secret_first));
                     v.setChecked(false);
                     return;
                 }
@@ -281,30 +308,29 @@ public class MainActivity extends Activity {
         });
         list.addView(sw);
 
-        list.addView(button("Проверить блокировку (сама снимется через 60 с)", v -> {
+        list.addView(button(t(R.string.btn_test_lock), v -> {
             if (!Settings.canDrawOverlays(this) && !a11yRunning()) {
-                toast("Нет разрешения «Поверх других окон» и спецвозможность выключена");
+                toast(t(R.string.toast_no_perm));
                 return;
             }
             if (!prefs.hasSecret(prefs.getMode())) {
-                toast("Сначала задай пароль");
+                toast(t(R.string.toast_set_password_first));
                 return;
             }
             LockEngine.send(this, LockEngine.ACTION_TEST_LOCK);
         }));
 
-        section("Если забыл пароль");
-        list.addView(text("Перезагрузи Thor в безопасный режим (зажми «Перезагрузить» в меню питания) — "
-                + "сторонние приложения там не запускаются. Затем удали или очисти данные Thor Lock "
-                + "в настройках Android.", 14));
+        section(t(R.string.sec_forgot));
+        list.addView(text(t(R.string.forgot_text), 14));
 
-        section("Журнал событий");
-        TextView log = text(EventLog.get(this), 11);
+        section(t(R.string.sec_log));
+        String logText = EventLog.get(this);
+        TextView log = text(logText.isEmpty() ? t(R.string.log_empty) : logText, 11);
         log.setTypeface(Typeface.MONOSPACE);
         log.setTextIsSelectable(true);
         LinearLayout row = new LinearLayout(this);
-        row.addView(button("Обновить", v -> showSettings()));
-        row.addView(button("Очистить", v -> {
+        row.addView(button(t(R.string.btn_refresh), v -> showSettings()));
+        row.addView(button(t(R.string.btn_clear), v -> {
             EventLog.clear(this);
             showSettings();
         }));
@@ -324,24 +350,24 @@ public class MainActivity extends Activity {
         try {
             getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
         } catch (Exception e) {
-            EventLog.add(this, "Видео: не удалось сохранить доступ к файлу: " + e);
+            EventLog.add(this, "Video: could not keep file access: " + e);
         }
         prefs.setVideoUri(uri.toString());
         prefs.setVideoEnabled(true);
         // После выбора файла снова проверять пароль не нужно.
         verifiedUntil = SystemClock.elapsedRealtime() + VERIFY_WINDOW_MS;
-        toast("Видео выбрано");
+        toast(t(R.string.video_selected));
     }
 
     private String videoName() {
         String u = prefs.getVideoUri();
-        if (u == null) return "не выбран";
+        if (u == null) return t(R.string.video_none);
         try (Cursor c = getContentResolver().query(Uri.parse(u),
                 new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (c != null && c.moveToFirst()) return c.getString(0);
         } catch (Exception ignored) {
         }
-        return "выбран (нет доступа к имени — выбери заново, если не играет)";
+        return t(R.string.video_noname);
     }
 
     private boolean a11yRunning() {
@@ -350,7 +376,7 @@ public class MainActivity extends Activity {
     }
 
     private String mark(String mode) {
-        return prefs.hasSecret(mode) ? "(задан ✓)" : "(не задан)";
+        return prefs.hasSecret(mode) ? t(R.string.mark_set) : t(R.string.mark_unset);
     }
 
     private void openSetup(String mode) {
@@ -358,6 +384,16 @@ public class MainActivity extends Activity {
     }
 
     // ---------- helpers ----------
+
+    static final String VERSION = "0.2.3";
+
+    private String t(int id) {
+        return L.t(this, id);
+    }
+
+    private String t(int id, Object... args) {
+        return L.t(this, id, args);
+    }
 
     private void section(String s) {
         TextView t = text(s, 13);

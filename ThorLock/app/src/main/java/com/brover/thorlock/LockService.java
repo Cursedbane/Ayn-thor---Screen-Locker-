@@ -75,7 +75,7 @@ public class LockService extends Service {
     /** Приложение смахнули из недавних — на всякий случай просим перезапуск через пару секунд. */
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        EventLog.add(this, "Приложение смахнули из недавних");
+        EventLog.add(this, "App swiped away from recents");
         if (engine != null && prefs.isEnabled()) scheduleRestart();
         super.onTaskRemoved(rootIntent);
     }
@@ -93,12 +93,12 @@ public class LockService extends Service {
                 am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, at, pi);
             }
         } catch (Exception e) {
-            EventLog.add(this, "Перезапуск не запланирован: " + e);
+            EventLog.add(this, "Restart not scheduled: " + e);
         }
     }
 
     private void createChannel() {
-        NotificationChannel ch = new NotificationChannel(CHANNEL, "Фоновая защита",
+        NotificationChannel ch = new NotificationChannel(CHANNEL, L.t(this, R.string.notif_channel),
                 NotificationManager.IMPORTANCE_LOW);
         ch.setShowBadge(false);
         getSystemService(NotificationManager.class).createNotificationChannel(ch);
@@ -112,10 +112,10 @@ public class LockService extends Service {
                 PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_lock)
-                .setContentTitle("Thor Lock активен")
-                .setContentText("Блокировка после закрытия крышки")
+                .setContentTitle(L.t(this, R.string.notif_title))
+                .setContentText(L.t(this, R.string.notif_text))
                 .setContentIntent(open)
-                .addAction(new Notification.Action.Builder(null, "Заблокировать", lock).build())
+                .addAction(new Notification.Action.Builder(null, L.t(this, R.string.notif_lock), lock).build())
                 .setOngoing(true)
                 .build();
     }
@@ -123,7 +123,7 @@ public class LockService extends Service {
     @Override
     public void onDestroy() {
         if (engine != null) {
-            EventLog.add(this, "Фоновая служба остановлена");
+            EventLog.add(this, "Background service stopped");
             engine.stop();
             if (prefs.isEnabled() && LockEngine.current == null) scheduleRestart();
         }

@@ -37,8 +37,8 @@ public class LockPanel extends LinearLayout {
         addView(text(title, 20, 0xFFFFFFFF, true));
 
         String hint;
-        if (patternMode) hint = showPattern ? "Нарисуй узор" : "Нарисуй узор на другом экране";
-        else hint = "Введи комбинацию кнопками геймпада";
+        if (patternMode) hint = L.t(c, showPattern ? R.string.hint_draw : R.string.hint_draw_other);
+        else hint = L.t(c, R.string.hint_combo);
         addView(text(hint, 15, 0xFF9AA7B8, false));
 
         status = text("", 15, 0xFFFF5252, false);

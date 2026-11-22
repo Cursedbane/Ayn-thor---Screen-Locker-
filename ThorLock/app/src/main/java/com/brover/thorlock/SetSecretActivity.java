@@ -59,15 +59,15 @@ public class SetSecretActivity extends Activity {
         root.addView(info);
 
         if (Prefs.MODE_PATTERN.equals(mode)) {
-            title.setText("Нарисуй новый узор");
-            info.setText("Минимум 4 точки");
+            title.setText(t(R.string.set_pattern_title));
+            info.setText(t(R.string.set_pattern_min));
             patternView = new PatternView(this);
             patternView.setListener(this::onPattern);
             root.addView(patternView, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         } else {
-            title.setText("Нажимай кнопки геймпада");
-            info.setText("От " + MIN_KEYS + " до " + MAX_KEYS + " кнопок: A B X Y, крестовина, L1 R1 L2 R2, L3 R3, Start, Select");
+            title.setText(t(R.string.set_combo_title));
+            info.setText(t(R.string.set_combo_info, MIN_KEYS, MAX_KEYS));
             sequence = label("—", 30, 0xFF4FC3F7);
             sequence.setPadding(0, dp(24), 0, dp(24));
             root.addView(sequence);
@@ -75,12 +75,12 @@ public class SetSecretActivity extends Activity {
             LinearLayout row = new LinearLayout(this);
             row.setGravity(Gravity.CENTER);
             Button reset = new Button(this);
-            reset.setText("Сбросить");
+            reset.setText(t(R.string.set_combo_reset));
             reset.setAllCaps(false);
             reset.setFocusable(false);
-            reset.setOnClickListener(v -> restart("Нажимай кнопки геймпада"));
+            reset.setOnClickListener(v -> restart(t(R.string.set_combo_title)));
             btnNext = new Button(this);
-            btnNext.setText("Далее");
+            btnNext.setText(t(R.string.set_combo_next));
             btnNext.setAllCaps(false);
             btnNext.setFocusable(false);
             btnNext.setEnabled(false);
@@ -96,7 +96,7 @@ public class SetSecretActivity extends Activity {
 
     private void onPattern(String pattern, int count) {
         if (count < 4) {
-            info.setText("Слишком короткий — минимум 4 точки");
+            info.setText(t(R.string.set_pattern_short));
             patternView.setError(true);
             handler.postDelayed(patternView::clear, 700);
             return;
@@ -104,16 +104,16 @@ public class SetSecretActivity extends Activity {
         if (stage == 0) {
             first = pattern;
             stage = 1;
-            title.setText("Повтори узор");
-            info.setText("Для подтверждения");
+            title.setText(t(R.string.set_pattern_repeat));
+            info.setText(t(R.string.set_pattern_confirm));
             handler.postDelayed(patternView::clear, 300);
         } else if (pattern.equals(first)) {
             prefs.setSecret(mode, pattern, count);
-            done("Узор сохранён");
+            done(t(R.string.set_pattern_saved));
         } else {
             stage = 0;
             first = null;
-            title.setText("Не совпало. Нарисуй заново");
+            title.setText(t(R.string.set_pattern_mismatch));
             patternView.setError(true);
             handler.postDelayed(patternView::clear, 700);
         }
@@ -154,9 +154,9 @@ public class SetSecretActivity extends Activity {
                 String s = KeyNames.join(keys);
                 if (s.equals(first)) {
                     prefs.setSecret(mode, s, firstLen);
-                    done("Комбинация сохранена");
+                    done(t(R.string.set_combo_saved));
                 } else {
-                    restart("Не совпало. Введи комбинацию заново");
+                    restart(t(R.string.set_combo_mismatch));
                 }
             }
         }
@@ -168,8 +168,8 @@ public class SetSecretActivity extends Activity {
         firstLen = keys.size();
         keys.clear();
         stage = 1;
-        title.setText("Повтори комбинацию");
-        info.setText("Нажми те же " + firstLen + " кнопок");
+        title.setText(t(R.string.set_combo_repeat));
+        info.setText(t(R.string.set_combo_press_same, firstLen));
         sequence.setText("—");
         btnNext.setVisibility(View.GONE);
     }
@@ -179,7 +179,7 @@ public class SetSecretActivity extends Activity {
         first = null;
         keys.clear();
         title.setText(msg);
-        info.setText("От " + MIN_KEYS + " до " + MAX_KEYS + " кнопок");
+        info.setText(t(R.string.set_combo_range, MIN_KEYS, MAX_KEYS));
         sequence.setText("—");
         btnNext.setVisibility(View.VISIBLE);
         btnNext.setEnabled(false);
@@ -188,6 +188,14 @@ public class SetSecretActivity extends Activity {
     private void done(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
         finish();
+    }
+
+    private String t(int id) {
+        return L.t(this, id);
+    }
+
+    private String t(int id, Object... args) {
+        return L.t(this, id, args);
     }
 
     private TextView label(String s, int sp, int color) {

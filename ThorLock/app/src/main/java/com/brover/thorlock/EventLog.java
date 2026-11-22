@@ -33,7 +33,7 @@ public final class EventLog {
 
     public static String get(Context c) {
         String s = sp(c).getString("log", "");
-        return s.isEmpty() ? "(пусто)" : s;
+        return s;
     }
 
     public static void clear(Context c) {

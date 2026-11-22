@@ -37,6 +37,16 @@ public final class Prefs {
     public String getPatternDisplay() { return sp.getString("pattern_display", DISPLAY_AUTO); }
     public void setPatternDisplay(String v) { sp.edit().putString("pattern_display", v).apply(); }
 
+    public static final String LANG_AUTO = "auto";
+
+    /** auto / en / ru / et */
+    public String getLanguage() { return sp.getString("lang", LANG_AUTO); }
+    public void setLanguage(String l) { sp.edit().putString("lang", l).apply(); }
+
+    /** Возвращать игру, если её свернуло при закрытии/открытии крышки. */
+    public boolean isAutoReturn() { return sp.getBoolean("auto_return", true); }
+    public void setAutoReturn(boolean v) { sp.edit().putBoolean("auto_return", v).apply(); }
+
     public boolean isVideoEnabled() { return sp.getBoolean("video_on", false); }
     public void setVideoEnabled(boolean v) { sp.edit().putBoolean("video_on", v).apply(); }
 

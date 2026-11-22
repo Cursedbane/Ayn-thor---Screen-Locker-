@@ -54,11 +54,11 @@ public class LockOverlay implements Unlocker.Callback {
             if (!isShowing() || !test) return;
             testLeft--;
             if (testLeft <= 0) {
-                EventLog.add(app, "Тест: блокировка снята по таймеру");
+                EventLog.add(app, "Test lock: released by timer");
                 finishUnlock(false);
                 return;
             }
-            unlocker.footer("Тест: само снимется через " + testLeft + " с");
+            unlocker.footer(L.t(app, R.string.test_footer, testLeft));
             handler.postDelayed(this, 1000);
         }
     };
@@ -66,7 +66,7 @@ public class LockOverlay implements Unlocker.Callback {
     private final Runnable videoTimeout = this::onVideoTimeout;
 
     private void onVideoTimeout() {
-        EventLog.add(app, "Видео: остановлено по лимиту времени");
+        EventLog.add(app, "Video: stopped by time limit");
         stopVideo();
     }
 
@@ -95,19 +95,20 @@ public class LockOverlay implements Unlocker.Callback {
 
     private boolean canDraw() {
         if (!accessibility && !Settings.canDrawOverlays(app)) {
-            EventLog.add(app, "ОШИБКА: нет разрешения «Поверх других окон»");
+            EventLog.add(app, "ERROR: no \"Display over other apps\" permission");
             return false;
         }
         return true;
     }
 
+    /** Экраны, на которые ставим окна: верхний и нижний. */
     private List<Display> publicDisplays(boolean log) {
         DisplayManager dm = app.getSystemService(DisplayManager.class);
         List<Display> displays = new ArrayList<>();
         for (Display d : dm.getDisplays()) {
             if (log) {
-                EventLog.add(app, "  экран id=" + d.getDisplayId() + " «" + d.getName() + "» flags="
-                        + d.getFlags() + " state=" + d.getState());
+                EventLog.add(app, "  display id=" + d.getDisplayId() + " \"" + d.getName() + "\" flags="
+                        + d.getFlags() + " state=" + LockEngine.stateName(d.getState()));
             }
             if (d.isValid() && (d.getFlags() & Display.FLAG_PRIVATE) == 0) displays.add(d);
         }
@@ -127,8 +128,8 @@ public class LockOverlay implements Unlocker.Callback {
         boolean patternMode = Prefs.MODE_PATTERN.equals(mode);
         test = testMode;
         unlocker = new Unlocker(app, mode, this);
-        EventLog.add(app, "Показ блокировки" + (test ? " (тест)" : "") + ", способ: "
-                + (patternMode ? "рисунок" : "геймпад"));
+        EventLog.add(app, "Showing lock" + (test ? " (test)" : "") + ", method: "
+                + (patternMode ? "pattern" : "gamepad"));
 
         List<Display> displays = publicDisplays(true);
         Display primary = app.getSystemService(DisplayManager.class).getDisplay(Display.DEFAULT_DISPLAY);
@@ -149,10 +150,10 @@ public class LockOverlay implements Unlocker.Callback {
                 patternId = patternDisplay.getDisplayId();
             } else if (primary != null && primary != patternDisplay && addPanel(primary, true)) {
                 patternId = primary.getDisplayId();
-                EventLog.add(app, "Рисунок перенесён на основной экран");
+                EventLog.add(app, "Pattern moved to the main (top) screen");
             }
             if (patternId < 0) {
-                EventLog.add(app, "ОШИБКА: не удалось показать рисунок ни на одном экране");
+                EventLog.add(app, "ERROR: could not show the pattern on any screen");
                 hide();
                 return false;
             }
@@ -170,15 +171,25 @@ public class LockOverlay implements Unlocker.Callback {
 
         if (test) {
             testLeft = TEST_SECONDS;
-            unlocker.footer("Тест: само снимется через " + testLeft + " с");
+            unlocker.footer(L.t(app, R.string.test_footer, testLeft));
             handler.postDelayed(testTick, 1000);
         }
         return true;
     }
 
     private boolean addPanel(Display d, boolean showPattern) {
-        return addWindow(d, c -> new LockPanel(c, unlocker, showPattern, "Устройство заблокировано", true),
-                showPattern ? "рисунок" : "блокировка");
+        return addWindow(d, c -> new LockPanel(c, unlocker, showPattern, L.t(app, R.string.lock_title), true),
+                showPattern ? "pattern" : "lock");
+    }
+
+    /** Экраны поменялись (нижний пропал/появился) — поставить окна заново, не снимая блокировку. */
+    public void rebuild() {
+        if (!isShowing()) return;
+        boolean wasTest = test;
+        int left = testLeft;
+        hide();
+        show(wasTest);
+        if (wasTest) testLeft = left;
     }
 
     /** Убрать все окна (и блокировку, и видео). */
@@ -196,7 +207,7 @@ public class LockOverlay implements Unlocker.Callback {
             try {
                 managers.get(i).removeViewImmediate(views.get(i));
             } catch (Throwable e) {
-                EventLog.add(app, "Ошибка при снятии окна: " + e);
+                EventLog.add(app, "Error removing window: " + e);
             }
         }
         views.clear();
@@ -214,7 +225,7 @@ public class LockOverlay implements Unlocker.Callback {
     private void finishUnlock(boolean allowVideo) {
         hide();
         new Prefs(app).setLocked(false);
-        EventLog.add(app, "Разблокировано");
+        EventLog.add(app, "UNLOCKED");
         if (allowVideo && playVideo()) return; // onUnlocked вызовется после видео
         if (onUnlocked != null) onUnlocked.run();
     }
@@ -224,7 +235,7 @@ public class LockOverlay implements Unlocker.Callback {
     /** Проверка видео из настроек. */
     public void testVideo() {
         if (isShowing() || playingVideo) return;
-        if (!playVideo()) EventLog.add(app, "Видео: не выбрано или выключено");
+        if (!playVideo()) EventLog.add(app, "Video: not selected or disabled");
     }
 
     private boolean playVideo() {
@@ -238,17 +249,17 @@ public class LockOverlay implements Unlocker.Callback {
         boolean videoAdded = false;
         for (Display d : publicDisplays(false)) {
             if (d.getDisplayId() == Display.DEFAULT_DISPLAY) {
-                videoAdded = addWindow(d, c -> createVideoView(c, uri, muted), "видео");
+                videoAdded = addWindow(d, c -> createVideoView(c, uri, muted), "video");
             } else {
-                addWindow(d, this::createBlackView, "чёрный фон");
+                addWindow(d, this::createBlackView, "black background");
             }
         }
         if (!videoAdded) {
-            EventLog.add(app, "Видео: не удалось показать окно");
+            EventLog.add(app, "Video: could not show window");
             hide();
             return false;
         }
-        EventLog.add(app, "Видео: запуск");
+        EventLog.add(app, "Video: start");
         handler.postDelayed(videoTimeout, VIDEO_MAX_MS);
         return true;
     }
@@ -268,8 +279,8 @@ public class LockOverlay implements Unlocker.Callback {
         });
         vv.setOnCompletionListener(mp -> stopVideo());
         vv.setOnErrorListener((mp, what, extra) -> {
-            EventLog.add(app, "Видео: ошибка воспроизведения (" + what + "/" + extra
-                    + "). Выбери файл заново или другой формат (mp4/H.264).");
+            EventLog.add(app, "Video: playback error (" + what + "/" + extra
+                    + "). Pick the file again or use mp4/H.264.");
             stopVideo();
             return true;
         });
@@ -279,7 +290,7 @@ public class LockOverlay implements Unlocker.Callback {
         try {
             vv.setVideoURI(uri);
         } catch (Throwable e) {
-            EventLog.add(app, "Видео: не открылось: " + e);
+            EventLog.add(app, "Video: could not open: " + e);
             handler.post(this::stopVideo);
         }
         return root;
@@ -313,7 +324,7 @@ public class LockOverlay implements Unlocker.Callback {
     private void stopVideo() {
         if (!playingVideo) return;
         hide();
-        EventLog.add(app, "Видео: конец");
+        EventLog.add(app, "Video: end");
         if (onUnlocked != null) onUnlocked.run();
     }
 
@@ -333,14 +344,14 @@ public class LockOverlay implements Unlocker.Callback {
             }
             if (attach(wc, d, f, label)) return true;
         } catch (Throwable e) {
-            EventLog.add(app, "  окно «" + label + "» на экране " + d.getDisplayId() + " — ОШИБКА: " + e);
+            EventLog.add(app, "  window \"" + label + "\" on display " + d.getDisplayId() + ": ERROR " + e);
         }
         // Запасной путь для основного экрана: прямо через контекст службы.
         if (d.getDisplayId() == Display.DEFAULT_DISPLAY) {
             try {
                 return attach(host, d, f, label);
             } catch (Throwable e) {
-                EventLog.add(app, "  окно «" + label + "» на основном экране (запасной путь) — ОШИБКА: " + e);
+                EventLog.add(app, "  window \"" + label + "\" on main display (fallback): ERROR " + e);
             }
         }
         return false;
@@ -357,8 +368,8 @@ public class LockOverlay implements Unlocker.Callback {
         }
         managers.add(wm);
         views.add(v);
-        EventLog.add(app, "  окно «" + label + "» на экране " + d.getDisplayId()
-                + (accessibility ? " [спецвозм.]" : "") + " — ок");
+        EventLog.add(app, "  window \"" + label + "\" on display " + d.getDisplayId()
+                + (accessibility ? " [a11y]" : "") + ": ok");
         return true;
     }
 

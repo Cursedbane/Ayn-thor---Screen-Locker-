@@ -60,13 +60,13 @@ public class Unlocker {
             return;
         }
         if (count < MIN_PATTERN) {
-            status("Минимум " + MIN_PATTERN + " точки", true);
+            status(L.t(app, R.string.st_min_dots, MIN_PATTERN), true);
             v.setError(true);
             handler.postDelayed(v::clear, 600);
             return;
         }
         boolean ok = prefs.check(mode, pattern);
-        EventLog.add(app, "Рисунок из " + count + " точек: " + (ok ? "верно" : "неверно"));
+        EventLog.add(app, "Pattern (" + count + " dots): " + (ok ? "correct" : "wrong"));
         if (ok) {
             success();
         } else {
@@ -103,10 +103,10 @@ public class Unlocker {
     private void onPress(int code) {
         if (!loggedKey) {
             loggedKey = true;
-            EventLog.add(app, "Получена кнопка геймпада: " + KeyNames.name(code));
+            EventLog.add(app, "Gamepad button received: " + KeyNames.name(code));
         }
         if (!Prefs.MODE_GAMEPAD.equals(mode)) {
-            status("Разблокировка рисунком на экране", false);
+            status(L.t(app, R.string.st_pattern_mode), false);
             return;
         }
         if (isBlocked()) return;
@@ -116,7 +116,7 @@ public class Unlocker {
             String entered = KeyNames.join(combo);
             combo.clear();
             boolean ok = prefs.check(mode, entered);
-            EventLog.add(app, "Комбинация: " + (ok ? "верно" : "неверно"));
+            EventLog.add(app, "Combo: " + (ok ? "correct" : "wrong"));
             if (ok) {
                 success();
             } else {
@@ -134,7 +134,7 @@ public class Unlocker {
     private boolean isBlocked() {
         long left = blockedUntil - SystemClock.elapsedRealtime();
         if (left > 0) {
-            status("Слишком много попыток. Подожди " + (left / 1000 + 1) + " с", true);
+            status(L.t(app, R.string.st_blocked, (int) (left / 1000 + 1)), true);
             return true;
         }
         return false;
@@ -147,7 +147,7 @@ public class Unlocker {
             blockedUntil = SystemClock.elapsedRealtime() + 30_000L * (1L << extra);
             isBlocked();
         } else {
-            status("Неверно. Осталось попыток: " + (FREE_ATTEMPTS - fails), true);
+            status(L.t(app, R.string.st_wrong, FREE_ATTEMPTS - fails), true);
         }
     }
 

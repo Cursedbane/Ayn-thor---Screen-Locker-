@@ -8,9 +8,12 @@ import android.view.accessibility.AccessibilityEvent;
 /**
  * Основной способ работы. Службу спецвозможностей система держит постоянно,
  * её не убивают при сворачивании/смахивании приложения. Плюс она перехватывает
- * кнопки геймпада и рисует блокировку поверх шторки уведомлений.
+ * кнопки геймпада, видит, какое приложение на экране (для журнала диагностики),
+ * и не даёт открыть шторку, пока устройство заблокировано.
  */
 public class LockAccessibilityService extends AccessibilityService {
+
+    private static final String SYSTEM_UI = "com.android.systemui";
 
     private LockEngine engine;
 
@@ -30,11 +33,20 @@ public class LockAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // Пока заблокировано — не даём открыть шторку уведомлений.
-        if (engine == null || !engine.isShowing() || event == null) return;
+        if (engine == null || event == null) return;
         if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
-        CharSequence pkg = event.getPackageName();
-        if (pkg != null && "com.android.systemui".contentEquals(pkg) && Build.VERSION.SDK_INT >= 31) {
+        CharSequence cs = event.getPackageName();
+        if (cs == null) return;
+        String pkg = cs.toString();
+        if (pkg.equals(getPackageName())) return;
+
+        if (!SYSTEM_UI.equals(pkg)) {
+            engine.onForegroundApp(pkg);
+            return;
+        }
+        // Шторку закрываем только когда экран уже включён какое-то время:
+        // в момент открытия крышки systemui сам перестраивает окна, туда не лезем.
+        if (engine.isShowing() && engine.isScreenSettled() && Build.VERSION.SDK_INT >= 31) {
             performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE);
         }
     }
