@@ -47,6 +47,16 @@ public final class Prefs {
     public boolean isAutoReturn() { return sp.getBoolean("auto_return", true); }
     public void setAutoReturn(boolean v) { sp.edit().putBoolean("auto_return", v).apply(); }
 
+    /** Фон экрана блокировки: картинка или GIF (content:// uri), null — без фона. */
+    public String getBgUri() { return sp.getString("bg_uri", null); }
+    public void setBgUri(String u) {
+        if (u == null) sp.edit().remove("bg_uri").apply();
+        else sp.edit().putString("bg_uri", u).apply();
+    }
+
+    public boolean isBgDim() { return sp.getBoolean("bg_dim", true); }
+    public void setBgDim(boolean v) { sp.edit().putBoolean("bg_dim", v).apply(); }
+
     public boolean isVideoEnabled() { return sp.getBoolean("video_on", false); }
     public void setVideoEnabled(boolean v) { sp.edit().putBoolean("video_on", v).apply(); }
 

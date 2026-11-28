@@ -42,6 +42,16 @@
     <string name="sec_game_return">Защита игры</string>
     <string name="auto_return">Возвращать игру, если её свернуло при закрытии или открытии крышки</string>
     <string name="auto_return_hint">На Thor при закрытии или открытии крышки иногда вылезает лаунчер или фронтенд, и эмулятор уходит в фон. Thor Lock замечает это и возвращает игру без перезапуска. Нужна спецвозможность. Игра возвращается через переключатель задач, поэтому меню эмулятора появляться не должно.</string>
+    <string name="sec_background">Фон блокировки</string>
+    <string name="bg_file">Фон: %1$s</string>
+    <string name="bg_none">нет (тёмный)</string>
+    <string name="bg_pick">Выбрать картинку или GIF</string>
+    <string name="bg_remove">Убрать фон</string>
+    <string name="bg_dim">Затемнять фон (текст лучше читается)</string>
+    <string name="bg_hint">Любая картинка или анимированный GIF/WebP. Показывается на обоих экранах и растягивается на весь экран.</string>
+    <string name="bg_selected">Фон установлен</string>
+    <string name="batt_charging">Заряжается</string>
+    <string name="batt_full">Заряжено</string>
     <string name="sec_video">Видео при разблокировке (как на Steam Deck)</string>
     <string name="video_show">Показывать видео после разблокировки</string>
     <string name="video_pick_first">Сначала выбери видео</string>

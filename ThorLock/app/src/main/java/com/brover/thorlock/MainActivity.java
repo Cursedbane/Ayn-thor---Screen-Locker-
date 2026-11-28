@@ -230,6 +230,33 @@ public class MainActivity extends Activity {
         list.addView(autoReturn);
         list.addView(text(t(R.string.auto_return_hint), 13));
 
+        // --- фон блокировки ---
+        section(t(R.string.sec_background));
+        list.addView(text(t(R.string.bg_file, fileName(prefs.getBgUri(), R.string.bg_none)), 14));
+        list.addView(button(t(R.string.bg_pick), v -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("image/*");
+            try {
+                startActivityForResult(i, REQ_BG);
+            } catch (Exception e) {
+                toast(t(R.string.video_no_picker));
+            }
+        }));
+        if (prefs.getBgUri() != null) {
+            list.addView(button(t(R.string.bg_remove), v -> {
+                prefs.setBgUri(null);
+                EventLog.add(this, "Settings: background removed");
+                showSettings();
+            }));
+        }
+        CheckBox dim = new CheckBox(this);
+        dim.setText(t(R.string.bg_dim));
+        dim.setChecked(prefs.isBgDim());
+        dim.setOnCheckedChangeListener((v, on) -> prefs.setBgDim(on));
+        list.addView(dim);
+        list.addView(text(t(R.string.bg_hint), 13));
+
         // --- видео ---
         section(t(R.string.sec_video));
         CheckBox videoOn = new CheckBox(this);
@@ -341,27 +368,37 @@ public class MainActivity extends Activity {
     }
 
     private static final int REQ_VIDEO = 42;
+    private static final int REQ_BG = 43;
 
     @Override
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
-        if (req != REQ_VIDEO || res != RESULT_OK || data == null || data.getData() == null) return;
+        if ((req != REQ_VIDEO && req != REQ_BG) || res != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
         try {
             getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
         } catch (Exception e) {
-            EventLog.add(this, "Video: could not keep file access: " + e);
+            EventLog.add(this, "Could not keep file access: " + e);
         }
-        prefs.setVideoUri(uri.toString());
-        prefs.setVideoEnabled(true);
+        if (req == REQ_VIDEO) {
+            prefs.setVideoUri(uri.toString());
+            prefs.setVideoEnabled(true);
+            toast(t(R.string.video_selected));
+        } else {
+            prefs.setBgUri(uri.toString());
+            EventLog.add(this, "Settings: background set");
+            toast(t(R.string.bg_selected));
+        }
         // После выбора файла снова проверять пароль не нужно.
         verifiedUntil = SystemClock.elapsedRealtime() + VERIFY_WINDOW_MS;
-        toast(t(R.string.video_selected));
     }
 
     private String videoName() {
-        String u = prefs.getVideoUri();
-        if (u == null) return t(R.string.video_none);
+        return fileName(prefs.getVideoUri(), R.string.video_none);
+    }
+
+    private String fileName(String u, int noneRes) {
+        if (u == null) return t(noneRes);
         try (Cursor c = getContentResolver().query(Uri.parse(u),
                 new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (c != null && c.moveToFirst()) return c.getString(0);
@@ -385,7 +422,7 @@ public class MainActivity extends Activity {
 
     // ---------- helpers ----------
 
-    static final String VERSION = "0.2.4";
+    static final String VERSION = "0.3.0";
 
     private String t(int id) {
         return L.t(this, id);

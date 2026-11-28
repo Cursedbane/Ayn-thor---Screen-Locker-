@@ -42,6 +42,16 @@
     <string name="sec_game_return">Game protection</string>
     <string name="auto_return">Bring the game back if it gets minimized when the lid closes or opens</string>
     <string name="auto_return_hint">On the Thor, the launcher or frontend sometimes jumps to the front when the lid closes or opens, and the emulator goes to the background. Thor Lock notices this and brings the game back without restarting it. Needs Accessibility. It returns the game via the task switcher, so the emulator menu should not appear.</string>
+    <string name="sec_background">Lock screen background</string>
+    <string name="bg_file">Background: %1$s</string>
+    <string name="bg_none">none (dark)</string>
+    <string name="bg_pick">Choose image or GIF</string>
+    <string name="bg_remove">Remove background</string>
+    <string name="bg_dim">Darken the background (text is easier to read)</string>
+    <string name="bg_hint">Any image or animated GIF/WebP. Shown on both screens and scaled to fill them.</string>
+    <string name="bg_selected">Background set</string>
+    <string name="batt_charging">Charging</string>
+    <string name="batt_full">Charged</string>
     <string name="sec_video">Video on unlock (like Steam Deck)</string>
     <string name="video_show">Show a video after unlocking</string>
     <string name="video_pick_first">Choose a video first</string>

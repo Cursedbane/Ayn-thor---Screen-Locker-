@@ -42,6 +42,16 @@
     <string name="sec_game_return">Mängu kaitse</string>
     <string name="auto_return">Too mäng tagasi, kui see kaane sulgemisel või avamisel minimeeritakse</string>
     <string name="auto_return_hint">Thoril hüppab kaane sulgemisel või avamisel mõnikord esile käivitaja või kasutajaliides ja emulaator läheb taustale. Thor Lock märkab seda ja toob mängu tagasi ilma seda taaskäivitamata. Vaja on hõlbustusfunktsiooni. Mäng tuuakse tagasi ülesannete vahetaja kaudu, seega emulaatori menüüd ei tohiks ilmuda.</string>
+    <string name="sec_background">Lukustuskuva taust</string>
+    <string name="bg_file">Taust: %1$s</string>
+    <string name="bg_none">puudub (tume)</string>
+    <string name="bg_pick">Vali pilt või GIF</string>
+    <string name="bg_remove">Eemalda taust</string>
+    <string name="bg_dim">Tumenda tausta (tekst on paremini loetav)</string>
+    <string name="bg_hint">Mis tahes pilt või animeeritud GIF/WebP. Kuvatakse mõlemal ekraanil ja venitatakse kogu ekraanile.</string>
+    <string name="bg_selected">Taust määratud</string>
+    <string name="batt_charging">Laeb</string>
+    <string name="batt_full">Täis laetud</string>
     <string name="sec_video">Video avamisel (nagu Steam Deckil)</string>
     <string name="video_show">Näita pärast avamist videot</string>
     <string name="video_pick_first">Vali kõigepealt video</string>
